@@ -41,3 +41,6 @@ gen/
 # Backup files
 *~
 *.bak
+
+.cursor/
+WeatherStationManager/
