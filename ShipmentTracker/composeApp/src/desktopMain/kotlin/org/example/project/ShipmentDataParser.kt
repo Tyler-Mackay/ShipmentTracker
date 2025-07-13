@@ -32,9 +32,10 @@ class ShipmentDataParser {
     
     /**
      * Parses an update string into its components
-     * Expected format: "SHIPMENT_ID,UPDATE_TYPE,TIMESTAMP,LOCATION,NOTES"
+     * Expected format from test.txt: "UPDATE_TYPE,SHIPMENT_ID,TIMESTAMP,[ADDITIONAL_DATA]"
+     * Returns components in order: [SHIPMENT_ID, UPDATE_TYPE, TIMESTAMP, LOCATION, NOTES]
      * @param update The update string to parse
-     * @return Array of parsed components from the update string
+     * @return Array of parsed components reordered to match expected format
      */
     fun parseUpdate(update: String): Array<String> {
         return try {
@@ -46,22 +47,55 @@ class ShipmentDataParser {
             // Split by comma and trim whitespace
             val components = update.split(",").map { it.trim() }
             
-            // Validate minimum required components (ID and UPDATE_TYPE)
+            // Validate minimum required components (UPDATE_TYPE and SHIPMENT_ID)
             if (components.size < 2) {
-                println("Warning: Invalid update format. Expected at least ID and UPDATE_TYPE: $update")
+                println("Warning: Invalid update format. Expected at least UPDATE_TYPE and SHIPMENT_ID: $update")
                 return arrayOf()
             }
             
-            // Ensure we have at least 5 components, filling with empty strings if needed
-            val paddedComponents = components.toMutableList()
-            while (paddedComponents.size < 5) {
-                paddedComponents.add("")
+            // Extract components from test.txt format
+            val updateType = components[0]
+            val shipmentId = components[1]
+            val createdTimestamp = components.getOrNull(2) ?: ""
+            val additionalData = components.getOrNull(3) ?: ""
+            
+            // Convert updateType to match the processor strategy names
+            val normalizedUpdateType = normalizeUpdateType(updateType)
+            
+            // Determine the correct timestamp based on update type
+            val timestamp = if ((updateType.lowercase() == "shipped" || updateType.lowercase() == "delayed") && additionalData.isNotBlank()) {
+                additionalData // For shipped and delayed updates, use the 4th component as timestamp
+            } else {
+                createdTimestamp // For other updates, use the 3rd component
             }
             
-            paddedComponents.toTypedArray()
+            // Reorder to match expected format: [SHIPMENT_ID, UPDATE_TYPE, TIMESTAMP, LOCATION, NOTES]
+            val location = if (updateType.lowercase() == "location") additionalData else ""
+            val notes = if (updateType.lowercase() == "noteadded") additionalData else ""
+            
+            arrayOf(shipmentId, normalizedUpdateType, timestamp, location, notes)
         } catch (e: Exception) {
             println("Error parsing update string '$update': ${e.message}")
             arrayOf()
+        }
+    }
+    
+    /**
+     * Normalizes update type from test.txt format to match processor strategy names
+     * @param updateType The update type from test.txt
+     * @return Normalized update type
+     */
+    private fun normalizeUpdateType(updateType: String): String {
+        return when (updateType.lowercase()) {
+            "created" -> "Create"
+            "shipped" -> "Shipped"
+            "location" -> "Location"
+            "delivered" -> "Delivered"
+            "delayed" -> "Delayed"
+            "lost" -> "Lost"
+            "canceled" -> "Cancelled"  // Handle spelling difference
+            "noteadded" -> "NoteAdded"
+            else -> updateType.replaceFirstChar { it.uppercase() }
         }
     }
     

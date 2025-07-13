@@ -35,12 +35,57 @@ class ShipmentTrackerViewModel : UI {
             }
         })
         
-        // Create some sample shipments for demonstration
-        createSampleShipments()
+        // Load shipments from test.txt file
+        loadShipmentsFromFile()
     }
     
     /**
-     * Creates sample shipments for demonstration
+     * Loads shipments from the test.txt file line by line with 1-second delays
+     */
+    private fun loadShipmentsFromFile() {
+        viewModelScope.launch {
+            try {
+                // Read all lines from the file first
+                val parser = ShipmentDataParser()
+                val lines = parser.readFile("test.txt")
+                
+                if (lines.isEmpty()) {
+                    println("No data found in test.txt, falling back to sample data")
+                    createSampleShipments()
+                    return@launch
+                }
+                
+                println("Starting live file processing - ${lines.size} lines to process")
+                
+                // Process each line with a 1-second delay
+                for ((index, line) in lines.withIndex()) {
+                    if (line.isNotBlank()) {
+                        try {
+                            simulator.processFileUpdate(line)
+                            println("Processed line ${index + 1}/${lines.size}: $line")
+                        } catch (e: Exception) {
+                            println("Error processing line ${index + 1}: $line - ${e.message}")
+                        }
+                    }
+                    
+                    // Wait 1 second before processing the next line
+                    if (index < lines.size - 1) {
+                        delay(1000)
+                    }
+                }
+                
+                println("Live file processing completed")
+                
+            } catch (e: Exception) {
+                println("Error loading shipments from test.txt: ${e.message}")
+                // Fall back to creating sample shipments if file loading fails
+                createSampleShipments()
+            }
+        }
+    }
+    
+    /**
+     * Creates sample shipments for demonstration (fallback)
      */
     private fun createSampleShipments() {
         val sampleShipments = listOf(

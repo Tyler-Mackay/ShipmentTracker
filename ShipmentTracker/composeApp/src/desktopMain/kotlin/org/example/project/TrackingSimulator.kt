@@ -121,22 +121,35 @@ class TrackingSimulator {
                 return
             }
             
-            // Extract components: [ID, UPDATE_TYPE, TIMESTAMP, LOCATION, NOTES]
+            // Extract components: [SHIPMENT_ID, UPDATE_TYPE, TIMESTAMP, LOCATION, NOTES]
             val shipmentId = components[0]
             val updateType = components[1]
             val timestampStr = components.getOrNull(2) ?: ""
             val location = components.getOrNull(3) ?: ""
             val notes = components.getOrNull(4) ?: ""
             
-            // Find the relevant shipment
-            val shipment = findShipment(shipmentId)
-            if (shipment == null) {
-                println("Warning: Shipment not found: $shipmentId")
-                return
-            }
-            
             // Parse timestamp
             val timestamp = parser.parseTimestamp(timestampStr)
+            
+            // Handle creating shipments for "Create" updates
+            var shipment = findShipment(shipmentId)
+            if (shipment == null) {
+                if (updateType == "Create") {
+                    // Create a new shipment using addShipment which handles the initial update
+                    shipment = Shipment(
+                        status = "Created",
+                        id = shipmentId,
+                        expectedDeliveryDate = timestamp + (7 * 24 * 60 * 60 * 1000), // 7 days from creation
+                        currentLocation = "Initial Location"
+                    )
+                    addShipment(shipment)
+                    println("Created new shipment: $shipmentId")
+                    return // Early return since addShipment already handled the update
+                } else {
+                    println("Warning: Shipment not found for update: $shipmentId")
+                    return
+                }
+            }
             
             // Apply the update using the updater
             updater?.let { updater ->

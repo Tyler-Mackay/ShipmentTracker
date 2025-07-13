@@ -130,7 +130,7 @@ fun ShipmentInputSection(
                 value = shipmentId,
                 onValueChange = { shipmentId = it },
                 label = { Text("Shipment ID") },
-                placeholder = { Text("Enter shipment ID (e.g., SHIP001)") },
+                placeholder = { Text("Enter shipment ID (e.g., s10000)") },
                 modifier = Modifier
                     .weight(1f)
                     .focusRequester(focusRequester),
@@ -206,139 +206,99 @@ fun ShipmentCard(
     onStopTracking: () -> Unit,
     formatDate: (Long) -> String
 ) {
-    var isExpanded by remember { mutableStateOf(false) }
-    
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { isExpanded = !isExpanded },
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
-            // Header row
+            // Header row with title and close button
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.Top
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "📦 ${shipment.id}",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Status: ${shipment.status}",
-                        fontSize = 14.sp,
-                        color = getStatusColor(shipment.status)
-                    )
-                }
+                Text(
+                    text = "Tracking shipment: ${shipment.id}",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
                 
-                // Stop tracking button
                 IconButton(
                     onClick = onStopTracking,
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(24.dp)
                 ) {
-                    Text("❌", fontSize = 16.sp)
+                    Text("❌", fontSize = 14.sp)
                 }
             }
             
-            // Expandable content
-            AnimatedVisibility(
-                visible = isExpanded,
-                enter = slideInVertically() + fadeIn(),
-                exit = slideOutVertically() + fadeOut()
-            ) {
-                Column(
-                    modifier = Modifier.padding(top = 8.dp)
-                ) {
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                    
-                    // Shipment details
-                    DetailRow("📍 Location", shipment.currentLocation)
-                    DetailRow("📅 Expected Delivery", formatDate(shipment.expectedDeliveryDate))
-                    DetailRow("📝 Notes", "${shipment.notes.size} notes")
-                    DetailRow("🔄 Updates", "${shipment.updateHistory.size} updates")
-                    
-                    // Recent updates
-                    if (shipment.updateHistory.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Recent Updates:",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        shipment.updateHistory.takeLast(3).forEach { update ->
-                            Text(
-                                text = "• ${update.previousStatus} → ${update.newStatus}",
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(start = 8.dp, top = 2.dp)
-                            )
-                        }
+            // Shipment details
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Text(
+                text = "Status: ${shipment.status}",
+                fontSize = 16.sp,
+                color = getStatusColor(shipment.status)
+            )
+            
+            Text(
+                text = "Location: ${shipment.currentLocation}",
+                fontSize = 16.sp,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+            
+            Text(
+                text = "Expected Delivery: ${formatDate(shipment.expectedDeliveryDate)}",
+                fontSize = 16.sp,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+            
+            // Status Updates
+            if (shipment.updateHistory.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Text(
+                    text = "Status Updates:",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                
+                shipment.updateHistory.forEach { update ->
+                    val statusText = if (update.previousStatus.isBlank()) {
+                        "Shipment status set to ${update.newStatus} at ${formatDate(update.timestamp)}"
+                    } else {
+                        "Shipment went from ${update.previousStatus} to ${update.newStatus} at ${formatDate(update.timestamp)}"
                     }
                     
-                    // Live update indicator
-                    LiveUpdateIndicator()
+                    Text(
+                        text = statusText,
+                        fontSize = 16.sp,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
+            }
+            
+            // Notes
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Text(
+                text = "Notes:",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            
+            if (shipment.notes.isNotEmpty()) {
+                shipment.notes.forEach { note ->
+                    Text(
+                        text = note,
+                        fontSize = 16.sp,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
                 }
             }
         }
-    }
-}
-
-@Composable
-fun DetailRow(label: String, value: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 2.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(
-            text = label,
-            fontSize = 14.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(
-            text = value,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Medium
-        )
-    }
-}
-
-@Composable
-fun LiveUpdateIndicator() {
-    var isVisible by remember { mutableStateOf(true) }
-    
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(1000)
-            isVisible = !isVisible
-        }
-    }
-    
-    Row(
-        modifier = Modifier.padding(top = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        AnimatedVisibility(
-            visible = isVisible,
-            enter = fadeIn(),
-            exit = fadeOut()
-        ) {
-            Text(
-                text = "🟢",
-                fontSize = 8.sp
-            )
-        }
-        Text(
-            text = " Live updates (every second)",
-            fontSize = 12.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
     }
 }
 
