@@ -19,10 +19,6 @@ class ShipmentTrackerViewModel : UI {
     private var _isLoading by mutableStateOf(false)
     val isLoading: Boolean get() = _isLoading
     
-    // Version counter to force recomposition
-    private var _uiVersion by mutableStateOf(0)
-    val uiVersion: Int get() = _uiVersion
-    
     private val viewModelScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     
     init {
@@ -150,10 +146,7 @@ class ShipmentTrackerViewModel : UI {
         // Force state update with completely new map
         _trackedShipments = newTrackedShipments.toMap()
         
-        // Force UI recomposition by incrementing version
-        _uiVersion++
-        
-        println("UI force-refreshed for ${newTrackedShipments.size} tracked shipments (version: $_uiVersion)")
+        println("UI force-refreshed for ${newTrackedShipments.size} tracked shipments")
     }
     
     /**
@@ -206,9 +199,6 @@ class ShipmentTrackerViewModel : UI {
             // Add to tracked shipments
             _trackedShipments = _trackedShipments + (shipmentId to trackingShipment)
             
-            // Force UI update
-            _uiVersion++
-            
             println("Now tracking shipment: $shipmentId")
             
             _isLoading = false
@@ -222,9 +212,6 @@ class ShipmentTrackerViewModel : UI {
         viewModelScope.launch {
             // Remove from tracked shipments
             _trackedShipments = _trackedShipments - shipmentId
-            
-            // Force UI update
-            _uiVersion++
             
             println("Stopped tracking shipment: $shipmentId")
         }

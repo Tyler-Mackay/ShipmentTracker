@@ -46,9 +46,6 @@ fun ShipmentTrackerScreen(viewModel: ShipmentTrackerViewModel) {
     val errorMessage = viewModel.errorMessage
     val isLoading = viewModel.isLoading
     
-    // Force recomposition by reading the version counter
-    val uiVersion = viewModel.uiVersion
-    
     Column(
         modifier = Modifier
             .fillMaxSize()
