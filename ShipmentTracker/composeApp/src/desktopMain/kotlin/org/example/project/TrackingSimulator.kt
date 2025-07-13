@@ -199,7 +199,7 @@ class TrackingSimulator {
      */
     fun notifyObservers(shipment: Shipment, update: ShippingUpdate) {
         observers.forEach { observer ->
-            observer.onShipmentUpdate(update)
+            observer.onShipmentUpdate(shipment.id, update)
         }
     }
     

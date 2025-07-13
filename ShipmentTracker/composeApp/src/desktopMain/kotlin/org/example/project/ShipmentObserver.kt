@@ -7,7 +7,8 @@ package org.example.project
 interface ShipmentObserver {
     /**
      * Called when a shipment update occurs
+     * @param shipmentId The ID of the shipment that was updated
      * @param update The shipping update that occurred
      */
-    fun onShipmentUpdate(update: ShippingUpdate)
+    fun onShipmentUpdate(shipmentId: String, update: ShippingUpdate)
 } 

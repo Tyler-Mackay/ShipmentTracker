@@ -20,7 +20,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
@@ -42,19 +41,13 @@ fun App() {
 
 @Composable
 fun ShipmentTrackerScreen(viewModel: ShipmentTrackerViewModel) {
-    var trackedShipments by remember { mutableStateOf(viewModel.trackedShipments) }
-    var errorMessage by remember { mutableStateOf(viewModel.errorMessage) }
-    var isLoading by remember { mutableStateOf(viewModel.isLoading) }
+    // Use viewModel state directly - no need for local state or polling
+    val trackedShipments = viewModel.trackedShipments
+    val errorMessage = viewModel.errorMessage
+    val isLoading = viewModel.isLoading
     
-    // Update UI when viewModel state changes
-    LaunchedEffect(viewModel) {
-        while (true) {
-            delay(100) // Check for updates every 100ms
-            trackedShipments = viewModel.trackedShipments
-            errorMessage = viewModel.errorMessage
-            isLoading = viewModel.isLoading
-        }
-    }
+    // Force recomposition by reading the version counter
+    val uiVersion = viewModel.uiVersion
     
     Column(
         modifier = Modifier

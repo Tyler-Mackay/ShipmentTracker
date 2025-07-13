@@ -1,5 +1,6 @@
 package org.example.project
 
+import androidx.compose.runtime.*
 import kotlinx.coroutines.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -9,16 +10,19 @@ import java.util.*
  */
 class ShipmentTrackerViewModel : UI {
     private val simulator = TrackingSimulator()
-    private var _trackedShipments = mapOf<String, Shipment>()
+    private var _trackedShipments by mutableStateOf(mapOf<String, Shipment>())
     val trackedShipments: Map<String, Shipment> get() = _trackedShipments
     
-    private var _errorMessage: String? = null
+    private var _errorMessage by mutableStateOf<String?>(null)
     val errorMessage: String? get() = _errorMessage
     
-    private var _isLoading = false
+    private var _isLoading by mutableStateOf(false)
     val isLoading: Boolean get() = _isLoading
     
-    private val updateJobs = mutableMapOf<String, Job>()
+    // Version counter to force recomposition
+    private var _uiVersion by mutableStateOf(0)
+    val uiVersion: Int get() = _uiVersion
+    
     private val viewModelScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     
     init {
@@ -27,11 +31,17 @@ class ShipmentTrackerViewModel : UI {
         simulator.setUpdater(ShipmentUpdater())
         simulator.setViewHelper(TrackerViewHelper())
         
-        // Add observer for real-time updates
+        // Add observer for real-time updates - only update UI when tracked shipments are updated
         simulator.addObserver(object : ShipmentObserver {
-            override fun onShipmentUpdate(update: ShippingUpdate) {
-                // Update the tracked shipments when changes occur
-                refreshTrackedShipments()
+            override fun onShipmentUpdate(shipmentId: String, update: ShippingUpdate) {
+                // Only refresh if this specific shipment is being tracked
+                if (_trackedShipments.containsKey(shipmentId)) {
+                    println("Refreshing UI for tracked shipment update: $shipmentId -> ${update.newStatus}")
+                    // Use coroutine to update UI on main thread
+                    viewModelScope.launch {
+                        refreshTrackedShipments()
+                    }
+                }
             }
         })
         
@@ -115,7 +125,39 @@ class ShipmentTrackerViewModel : UI {
     }
     
     /**
-     * Toggles tracking for a shipment ID
+     * Refreshes all tracked shipments and triggers UI update
+     */
+    private fun refreshTrackedShipments() {
+        // Force UI update by creating a completely new map with fresh shipment data
+        val newTrackedShipments = mutableMapOf<String, Shipment>()
+        
+        _trackedShipments.keys.forEach { shipmentId ->
+            val freshShipment = simulator.findShipment(shipmentId)
+            if (freshShipment != null) {
+                // Create a completely new Shipment instance with current data
+                val updatedShipment = Shipment(
+                    status = freshShipment.status,
+                    id = freshShipment.id,
+                    expectedDeliveryDate = freshShipment.expectedDeliveryDate,
+                    currentLocation = freshShipment.currentLocation,
+                    notes = freshShipment.notes.toMutableList(),
+                    updateHistory = freshShipment.updateHistory.toMutableList()
+                )
+                newTrackedShipments[shipmentId] = updatedShipment
+            }
+        }
+        
+        // Force state update with completely new map
+        _trackedShipments = newTrackedShipments.toMap()
+        
+        // Force UI recomposition by incrementing version
+        _uiVersion++
+        
+        println("UI force-refreshed for ${newTrackedShipments.size} tracked shipments (version: $_uiVersion)")
+    }
+    
+    /**
+     * Toggles tracking for a shipment ID - starts tracking if not tracked, stops if already tracked
      */
     fun toggleTracking(shipmentId: String) {
         val trimmedId = shipmentId.trim()
@@ -125,10 +167,12 @@ class ShipmentTrackerViewModel : UI {
         }
         
         if (_trackedShipments.containsKey(trimmedId)) {
-            // Stop tracking
+            // Stop tracking if already being tracked
+            println("Stopping tracking for shipment: $trimmedId")
             stopTracking(trimmedId)
         } else {
-            // Start tracking
+            // Start tracking if not currently tracked
+            println("Starting tracking for shipment: $trimmedId")
             startTracking(trimmedId)
         }
     }
@@ -137,67 +181,62 @@ class ShipmentTrackerViewModel : UI {
      * Starts tracking a shipment
      */
     private fun startTracking(shipmentId: String) {
-        _isLoading = true
-        _errorMessage = null
-        
-        val shipment = simulator.findShipment(shipmentId)
-        if (shipment == null) {
-            _errorMessage = "Shipment ID '$shipmentId' not found"
-            _isLoading = false
-            notifyIfShipmentDoesntExist()
-            return
-        }
-        
-        // Add to tracked shipments
-        _trackedShipments = _trackedShipments + (shipmentId to shipment)
-        
-        // Start coroutine for real-time updates (max once per second)
-        val updateJob = viewModelScope.launch {
-            while (isActive) {
-                delay(1000) // Update every second
-                
-                // Get fresh shipment data
-                val freshShipment = simulator.findShipment(shipmentId)
-                if (freshShipment != null) {
-                    _trackedShipments = _trackedShipments + (shipmentId to freshShipment)
-                }
+        viewModelScope.launch {
+            _isLoading = true
+            _errorMessage = null
+            
+            val shipment = simulator.findShipment(shipmentId)
+            if (shipment == null) {
+                _errorMessage = "Shipment ID '$shipmentId' not found"
+                _isLoading = false
+                notifyIfShipmentDoesntExist()
+                return@launch
             }
+            
+            // Create a new shipment instance for tracking
+            val trackingShipment = Shipment(
+                status = shipment.status,
+                id = shipment.id,
+                expectedDeliveryDate = shipment.expectedDeliveryDate,
+                currentLocation = shipment.currentLocation,
+                notes = shipment.notes.toMutableList(),
+                updateHistory = shipment.updateHistory.toMutableList()
+            )
+            
+            // Add to tracked shipments
+            _trackedShipments = _trackedShipments + (shipmentId to trackingShipment)
+            
+            // Force UI update
+            _uiVersion++
+            
+            println("Now tracking shipment: $shipmentId")
+            
+            _isLoading = false
         }
-        
-        updateJobs[shipmentId] = updateJob
-        _isLoading = false
     }
     
     /**
      * Stops tracking a shipment
      */
     fun stopTracking(shipmentId: String) {
-        // Cancel the update job
-        updateJobs[shipmentId]?.cancel()
-        updateJobs.remove(shipmentId)
-        
-        // Remove from tracked shipments
-        _trackedShipments = _trackedShipments - shipmentId
-    }
-    
-    /**
-     * Refreshes all tracked shipments
-     */
-    private fun refreshTrackedShipments() {
-        val currentTracked = _trackedShipments
-        val refreshedShipments = currentTracked.mapNotNull { (id, _) ->
-            val freshShipment = simulator.findShipment(id)
-            if (freshShipment != null) id to freshShipment else null
-        }.toMap()
-        
-        _trackedShipments = refreshedShipments
+        viewModelScope.launch {
+            // Remove from tracked shipments
+            _trackedShipments = _trackedShipments - shipmentId
+            
+            // Force UI update
+            _uiVersion++
+            
+            println("Stopped tracking shipment: $shipmentId")
+        }
     }
     
     /**
      * Clears error message
      */
     fun clearError() {
-        _errorMessage = null
+        viewModelScope.launch {
+            _errorMessage = null
+        }
     }
     
     /**
@@ -212,8 +251,6 @@ class ShipmentTrackerViewModel : UI {
      * Cleans up resources
      */
     fun cleanup() {
-        updateJobs.values.forEach { it.cancel() }
-        updateJobs.clear()
         viewModelScope.cancel()
     }
     

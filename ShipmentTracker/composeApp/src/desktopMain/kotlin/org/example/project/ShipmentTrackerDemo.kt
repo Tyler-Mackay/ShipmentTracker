@@ -26,8 +26,8 @@ class ShipmentTrackerDemo {
         
         // Create a simple observer to log updates
         val observer = object : ShipmentObserver {
-            override fun onShipmentUpdate(update: ShippingUpdate) {
-                println("📦 UPDATE RECEIVED: ${update.previousStatus} -> ${update.newStatus} at ${update.timestamp}")
+            override fun onShipmentUpdate(shipmentId: String, update: ShippingUpdate) {
+                println("📦 UPDATE RECEIVED for $shipmentId: ${update.previousStatus} -> ${update.newStatus} at ${update.timestamp}")
             }
         }
         
