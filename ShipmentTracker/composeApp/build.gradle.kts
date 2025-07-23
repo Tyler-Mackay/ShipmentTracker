@@ -19,6 +19,7 @@ kotlin {
     
     sourceSets {
         val desktopMain by getting
+        val desktopTest by getting
         
         commonMain.dependencies {
             implementation(compose.runtime)
@@ -37,6 +38,9 @@ kotlin {
         desktopMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
+        }
+        desktopTest.dependencies {
+            implementation(libs.kotlin.test)
         }
     }
 }
