@@ -5,7 +5,6 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
@@ -25,33 +24,34 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 @Preview
 fun App() {
-    val viewModel = remember { ShipmentTrackerViewModel() }
+    val trackerViewHelper = remember { 
+        TrackerViewHelper().apply { 
+            initialize() 
+        } 
+    }
     
-    // Clean up when composable leaves composition
-    DisposableEffect(viewModel) {
+    DisposableEffect(trackerViewHelper) {
         onDispose {
-            viewModel.cleanup()
+            trackerViewHelper.cleanup()
         }
     }
     
     MaterialTheme {
-        ShipmentTrackerScreen(viewModel)
+        ShipmentTrackerScreen(trackerViewHelper)
     }
 }
 
 @Composable
-fun ShipmentTrackerScreen(viewModel: ShipmentTrackerViewModel) {
-    // Use viewModel state directly - no need for local state or polling
-    val trackedShipments = viewModel.trackedShipments
-    val errorMessage = viewModel.errorMessage
-    val isLoading = viewModel.isLoading
+fun ShipmentTrackerScreen(trackerViewHelper: TrackerViewHelper) {
+    val trackedShipments = trackerViewHelper.getTrackedShipments()
+    val errorMessage = trackerViewHelper.errorMessage
+    val isLoading = trackerViewHelper.isLoading
     
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        // Header
         Text(
             text = "📦 Shipment Tracker",
             fontSize = 24.sp,
@@ -59,15 +59,13 @@ fun ShipmentTrackerScreen(viewModel: ShipmentTrackerViewModel) {
             modifier = Modifier.padding(bottom = 16.dp)
         )
         
-        // Input Section
         ShipmentInputSection(
-            onTrackShipment = viewModel::toggleTracking,
+            onTrackShipment = trackerViewHelper::toggleTracking,
             isLoading = isLoading,
             errorMessage = errorMessage,
-            onClearError = viewModel::clearError
+            onClearError = trackerViewHelper::clearError
         )
         
-        // Tracked Shipments Section
         if (trackedShipments.isNotEmpty()) {
             Spacer(modifier = Modifier.height(16.dp))
             
@@ -84,8 +82,8 @@ fun ShipmentTrackerScreen(viewModel: ShipmentTrackerViewModel) {
                 items(trackedShipments.entries.toList()) { (shipmentId, shipment) ->
                     ShipmentCard(
                         shipment = shipment,
-                        onStopTracking = { viewModel.stopTracking(shipmentId) },
-                        formatDate = viewModel::formatDate
+                        onStopTracking = { trackerViewHelper.stopTrackingShipment(shipmentId) },
+                        formatDate = trackerViewHelper::formatDate
                     )
                 }
             }
@@ -103,7 +101,6 @@ fun ShipmentInputSection(
     var shipmentId by remember { mutableStateOf("") }
     val focusRequester = remember { FocusRequester() }
     
-    // Clear error when user starts typing
     LaunchedEffect(shipmentId) {
         if (errorMessage != null) {
             onClearError()
@@ -156,7 +153,6 @@ fun ShipmentInputSection(
             }
         }
         
-        // Error message
         AnimatedVisibility(
             visible = errorMessage != null,
             enter = slideInVertically() + fadeIn(),
@@ -180,7 +176,6 @@ fun ShipmentInputSection(
             }
         }
         
-        // Helper text
         Text(
             text = "💡 Tip: Enter the same ID again to stop tracking it",
             fontSize = 12.sp,
@@ -203,7 +198,6 @@ fun ShipmentCard(
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
-            // Header row with title and close button
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -224,7 +218,6 @@ fun ShipmentCard(
                 }
             }
             
-            // Shipment details
             Spacer(modifier = Modifier.height(8.dp))
             
             Text(
@@ -245,7 +238,6 @@ fun ShipmentCard(
                 modifier = Modifier.padding(top = 4.dp)
             )
             
-            // Status Updates
             if (shipment.updateHistory.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 
@@ -270,7 +262,6 @@ fun ShipmentCard(
                 }
             }
             
-            // Notes
             Spacer(modifier = Modifier.height(8.dp))
             
             Text(

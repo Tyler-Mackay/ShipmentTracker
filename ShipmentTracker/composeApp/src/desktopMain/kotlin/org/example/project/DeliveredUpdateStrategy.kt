@@ -1,8 +1,5 @@
 package org.example.project
 
-/**
- * Strategy for processing shipment delivered updates
- */
 class DeliveredUpdateStrategy : UpdateProcessorStrategy {
     override fun processUpdate(shipment: Shipment, timestamp: Long): ShippingUpdate {
         val previousStatus = shipment.status
