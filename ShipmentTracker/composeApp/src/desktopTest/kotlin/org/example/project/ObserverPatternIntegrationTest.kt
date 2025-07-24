@@ -7,6 +7,12 @@ import kotlin.test.assertFalse
 import kotlin.test.BeforeTest
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.delay
+import org.example.project.Shipment.Shipment
+import org.example.project.Shipment.ShipmentDataParser
+import org.example.project.Shipment.ShipmentUpdater
+import org.example.project.ShippingUpdate.ShippingUpdate
+import org.example.project.Tracker.TrackerViewHelper
+import org.example.project.Tracker.TrackingSimulator
 
 class ObserverPatternIntegrationTest {
 

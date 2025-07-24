@@ -1,5 +1,12 @@
 package org.example.project
 
+import org.example.project.Shipment.Shipment
+import org.example.project.Shipment.ShipmentDataParser
+import org.example.project.Shipment.ShipmentObserver
+import org.example.project.Shipment.ShipmentUpdater
+import org.example.project.ShippingUpdate.ShippingUpdate
+import org.example.project.Tracker.TrackerViewHelper
+import org.example.project.Tracker.TrackingSimulator
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -252,7 +259,7 @@ class ErrorHandlingTest {
         // Cause an error with invalid update type
         try {
             updater.processUpdate("INVALID", 
-                Shipment("Created", "SHIP001", expectedDeliveryDate = 123L, currentLocation = "Warehouse"), 
+                Shipment("Created", "SHIP001", expectedDeliveryDate = 123L, currentLocation = "Warehouse"),
                 123L)
         } catch (e: IllegalArgumentException) {
             // Expected
@@ -260,7 +267,7 @@ class ErrorHandlingTest {
         
         // Verify updater still works after error
         val validResult = updater.processUpdate("Create", 
-            Shipment("Created", "SHIP002", expectedDeliveryDate = 123L, currentLocation = "Warehouse"), 
+            Shipment("Created", "SHIP002", expectedDeliveryDate = 123L, currentLocation = "Warehouse"),
             456L)
         
         assertEquals("Created", validResult.newStatus)

@@ -1,4 +1,11 @@
-package org.example.project
+package org.example.project.Tracker
+
+import org.example.project.Shipment.Shipment
+import org.example.project.Shipment.ShipmentDataParser
+import org.example.project.Shipment.ShipmentUpdater
+import org.example.project.Shipment.ShipmentFactory
+import org.example.project.Shipment.ShipmentType
+import org.example.project.ShippingUpdate.ShippingUpdate
 
 class TrackingSimulator {
     private val shipments: MutableList<Shipment> = mutableListOf()
@@ -95,10 +102,12 @@ class TrackingSimulator {
             var shipment = findShipment(shipmentId)
             if (shipment == null) {
                 if (updateType == "Create") {
-                    shipment = Shipment(
+                    shipment = ShipmentFactory.createShipment(
+                        type = ShipmentType.STANDARD, // Default to standard
                         status = "Created",
                         id = shipmentId,
-                        expectedDeliveryDate = timestamp + (7 * 24 * 60 * 60 * 1000),
+                        creationDate = timestamp,
+                        expectedDeliveryDateTimestamp = timestamp + (7 * 24 * 60 * 60 * 1000),
                         currentLocation = "Initial Location"
                     )
                     addShipment(shipment)

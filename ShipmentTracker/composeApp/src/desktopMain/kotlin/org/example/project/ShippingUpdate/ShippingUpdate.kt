@@ -1,4 +1,4 @@
-package org.example.project
+package org.example.project.ShippingUpdate
 
 data class ShippingUpdate(
     val previousStatus: String,

@@ -1,7 +1,6 @@
 package org.example.project
 
 import androidx.compose.animation.*
-import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -19,13 +18,15 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.example.project.Shipment.Shipment
+import org.example.project.Tracker.TrackerViewHelper
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
 @Preview
 fun App() {
     val trackerViewHelper = remember { 
-        TrackerViewHelper().apply { 
+        TrackerViewHelper().apply {
             initialize() 
         } 
     }
@@ -233,7 +234,7 @@ fun ShipmentCard(
             )
             
             Text(
-                text = "Expected Delivery: ${formatDate(shipment.expectedDeliveryDate)}",
+                text = "Expected Delivery: ${formatDate(shipment.expectedDeliveryDateTimestamp)}",
                 fontSize = 16.sp,
                 modifier = Modifier.padding(top = 4.dp)
             )

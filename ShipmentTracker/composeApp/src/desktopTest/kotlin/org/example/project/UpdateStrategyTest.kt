@@ -1,5 +1,7 @@
 package org.example.project
 
+import org.example.project.Shipment.Shipment
+import org.example.project.ShippingUpdate.*
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.BeforeTest

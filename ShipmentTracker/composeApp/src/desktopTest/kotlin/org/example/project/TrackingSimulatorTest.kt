@@ -1,5 +1,9 @@
 package org.example.project
 
+import org.example.project.Shipment.Shipment
+import org.example.project.Shipment.ShipmentDataParser
+import org.example.project.Shipment.ShipmentUpdater
+import org.example.project.Tracker.TrackingSimulator
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue

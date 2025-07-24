@@ -1,9 +1,11 @@
-package org.example.project
+package org.example.project.ShippingUpdate
 
-class CancelledUpdateStrategy : UpdateProcessorStrategy {
+import org.example.project.Shipment.Shipment
+
+class NoteAddedUpdateStrategy : UpdateProcessorStrategy {
     override fun processUpdate(shipment: Shipment, timestamp: Long): ShippingUpdate {
         val previousStatus = shipment.status
-        val newStatus = "Cancelled"
+        val newStatus = shipment.status // Preserve current status when adding notes
         
         return ShippingUpdate(
             previousStatus = previousStatus,

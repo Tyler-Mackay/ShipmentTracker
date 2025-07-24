@@ -1,9 +1,11 @@
-package org.example.project
+package org.example.project.ShippingUpdate
 
-class ShippedUpdateStrategy : UpdateProcessorStrategy {
+import org.example.project.Shipment.Shipment
+
+class DeliveredUpdateStrategy : UpdateProcessorStrategy {
     override fun processUpdate(shipment: Shipment, timestamp: Long): ShippingUpdate {
         val previousStatus = shipment.status
-        val newStatus = "Shipped"
+        val newStatus = "Delivered"
         
         return ShippingUpdate(
             previousStatus = previousStatus,

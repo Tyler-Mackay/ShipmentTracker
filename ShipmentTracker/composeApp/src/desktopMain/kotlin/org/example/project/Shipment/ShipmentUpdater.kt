@@ -1,4 +1,6 @@
-package org.example.project
+package org.example.project.Shipment
+
+import org.example.project.ShippingUpdate.*
 
 class ShipmentUpdater {
     private val processors: MutableMap<String, UpdateProcessorStrategy> = mutableMapOf()

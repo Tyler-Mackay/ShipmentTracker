@@ -1,10 +1,12 @@
 package org.example.project
 
+import org.example.project.Shipment.Shipment
+import org.example.project.Shipment.ShipmentObserver
+import org.example.project.ShippingUpdate.ShippingUpdate
 import kotlin.test.Test
 import kotlin.test.BeforeTest
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
-import kotlin.test.assertNotEquals
 
 class ShipmentTest {
 

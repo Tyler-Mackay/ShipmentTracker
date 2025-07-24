@@ -1,12 +1,11 @@
 package org.example.project
 
+import org.example.project.Shipment.ShipmentDataParser
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.test.assertFalse
-import kotlin.test.assertContentEquals
 import java.io.File
-import java.io.IOException
 
 class ShipmentDataParserTest {
 

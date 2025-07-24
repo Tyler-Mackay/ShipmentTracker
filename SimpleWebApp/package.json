@@ -1,0 +1,12 @@
+{
+  "name": "simple-web-app",
+  "version": "1.0.0",
+  "description": "A simple web application with text input and notification",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "author": "",
+  "license": "MIT"
+} 

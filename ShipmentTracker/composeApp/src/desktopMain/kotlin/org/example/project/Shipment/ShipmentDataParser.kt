@@ -1,4 +1,4 @@
-package org.example.project
+package org.example.project.Shipment
 
 import java.io.File
 import java.io.IOException
@@ -92,4 +92,66 @@ class ShipmentDataParser {
             System.currentTimeMillis()
         }
     }
-} 
+    
+    /**
+     * Parse created shipment data from string format: created,shipmentId,shipmentType,timestamp
+     */
+    fun parseCreatedShipment(data: String): CreatedShipmentData {
+        val parts = data.split(",").map { it.trim() }
+        
+        if (parts.size < 4) {
+            throw IllegalArgumentException("Invalid created shipment format. Expected: created,shipmentId,shipmentType,timestamp")
+        }
+        
+        val eventType = parts[0]
+        val shipmentId = parts[1]
+        val shipmentTypeStr = parts[2]
+        val timestampStr = parts[3]
+        
+        if (eventType.lowercase() != "created") {
+            throw IllegalArgumentException("Expected 'created' event type, got: $eventType")
+        }
+        
+        val shipmentType = ShipmentFactory.parseShipmentType(shipmentTypeStr)
+        val timestamp = parseTimestamp(timestampStr)
+        
+        return CreatedShipmentData(shipmentId, shipmentType, timestamp)
+    }
+    
+    /**
+     * Parse update data from string format
+     */
+    fun parseUpdateData(data: String): UpdateData {
+        val parts = data.split(",").map { it.trim() }
+        
+        if (parts.size < 3) {
+            throw IllegalArgumentException("Invalid update format. Expected at least: updateType,shipmentId,timestamp")
+        }
+        
+        val updateType = normalizeUpdateType(parts[0])
+        val shipmentId = parts[1]
+        val timestamp = parseTimestamp(parts[2])
+        val additionalData = if (parts.size > 3) parts.drop(3).joinToString(",") else null
+        
+        return UpdateData(updateType, shipmentId, timestamp, additionalData)
+    }
+}
+
+/**
+ * Data class for parsed created shipment information
+ */
+data class CreatedShipmentData(
+    val id: String,
+    val shipmentType: ShipmentType,
+    val timestamp: Long
+)
+
+/**
+ * Data class for parsed update information
+ */
+data class UpdateData(
+    val updateType: String,
+    val shipmentId: String,
+    val timestamp: Long,
+    val additionalData: String?
+) 

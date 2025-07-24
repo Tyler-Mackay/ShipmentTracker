@@ -1,7 +1,14 @@
-package org.example.project
+package org.example.project.Tracker
 
 import androidx.compose.runtime.*
 import kotlinx.coroutines.*
+import org.example.project.Shipment.Shipment
+import org.example.project.Shipment.ShipmentDataParser
+import org.example.project.Shipment.ShipmentObserver
+import org.example.project.Shipment.ShipmentUpdater
+import org.example.project.Shipment.ShipmentFactory
+import org.example.project.Shipment.ShipmentType
+import org.example.project.ShippingUpdate.ShippingUpdate
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -34,12 +41,20 @@ class TrackerViewHelper : ShipmentObserver, UI {
     private val viewHelperScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     
     fun initialize() {
+        // TrackingSimulator disabled for now - using TrackingServer instead
+        /*
         val trackingSimulator = TrackingSimulator()
         trackingSimulator.setParser(ShipmentDataParser())
         trackingSimulator.setUpdater(ShipmentUpdater())
         
         setSimulator(trackingSimulator)
-        loadShipmentsFromFile()
+        */
+        
+        // Don't load from file - we'll get data from TrackingServer instead
+        // loadShipmentsFromFile()
+        
+        // Create some sample shipments for testing the UI
+        createSampleShipments()
     }
     
     fun setSimulator(simulator: TrackingSimulator) {
@@ -85,23 +100,30 @@ class TrackerViewHelper : ShipmentObserver, UI {
     }
     
     private fun createSampleShipments() {
+        val currentTime = System.currentTimeMillis()
         val sampleShipments = listOf(
-            Shipment(
+            ShipmentFactory.createShipment(
+                type = ShipmentType.STANDARD,
                 status = "Created",
                 id = "SHIP001",
-                expectedDeliveryDate = System.currentTimeMillis() + (3 * 24 * 60 * 60 * 1000),
+                creationDate = currentTime,
+                expectedDeliveryDateTimestamp = currentTime + (3 * 24 * 60 * 60 * 1000),
                 currentLocation = "Warehouse A"
             ),
-            Shipment(
+            ShipmentFactory.createShipment(
+                type = ShipmentType.EXPRESS,
                 status = "Shipped",
-                id = "SHIP002", 
-                expectedDeliveryDate = System.currentTimeMillis() + (5 * 24 * 60 * 60 * 1000),
+                id = "SHIP002",
+                creationDate = currentTime,
+                expectedDeliveryDateTimestamp = currentTime + (5 * 24 * 60 * 60 * 1000),
                 currentLocation = "Distribution Center"
             ),
-            Shipment(
+            ShipmentFactory.createShipment(
+                type = ShipmentType.OVERNIGHT,
                 status = "In Transit",
                 id = "SHIP003",
-                expectedDeliveryDate = System.currentTimeMillis() + (2 * 24 * 60 * 60 * 1000),
+                creationDate = currentTime,
+                expectedDeliveryDateTimestamp = currentTime + (2 * 24 * 60 * 60 * 1000),
                 currentLocation = "Highway 101"
             )
         )
@@ -150,20 +172,23 @@ class TrackerViewHelper : ShipmentObserver, UI {
     }
     
     fun trackShipment(id: String): Boolean {
-        simulator?.let { sim ->
-            val shipment = sim.findShipment(id)
-            if (shipment != null) {
-                if (!activeTrackingShipments.contains(id)) {
-                    activeTrackingShipments.add(id)
-                    trackedShipmentsData[id] = createShipmentCopy(shipment)
-                    
-                    shipment.addObserver(this)
-                    updateAllStateProperties()
-                    
-                    return true
-                }
+        println("DEBUG: TrackerViewHelper.trackShipment called for ID: $id")
+        val server = org.example.project.TrackingServer.getInstance()
+        println("DEBUG: Got TrackingServer instance: $server")
+        val shipment = server.getShipment(id)
+        println("DEBUG: TrackingServer.getShipment returned: $shipment")
+        if (shipment != null) {
+            if (!activeTrackingShipments.contains(id)) {
+                activeTrackingShipments.add(id)
+                trackedShipmentsData[id] = shipment
+                updateAllStateProperties()
+                println("DEBUG: Shipment $id added to tracking")
+            } else {
+                println("DEBUG: Shipment $id already being tracked")
             }
+            return true
         }
+        println("DEBUG: Shipment $id NOT FOUND - returning false")
         return false
     }
     
@@ -236,18 +261,26 @@ class TrackerViewHelper : ShipmentObserver, UI {
     }
     
     fun shipmentExists(id: String): Boolean {
-        return simulator?.findShipment(id) != null
+        println("DEBUG: shipmentExists called for ID: $id")
+        val server = org.example.project.TrackingServer.getInstance()
+        val exists = server.getShipment(id) != null
+        println("DEBUG: shipmentExists result for $id: $exists")
+        return exists
     }
     
     private fun createShipmentCopy(shipment: Shipment): Shipment {
-        return Shipment(
+        return ShipmentFactory.createShipment(
+            type = shipment.shipmentType,
             status = shipment.status,
             id = shipment.id,
-            expectedDeliveryDate = shipment.expectedDeliveryDate,
-            currentLocation = shipment.currentLocation,
-            notes = shipment.notes.toMutableList(),
-            updateHistory = shipment.updateHistory.toMutableList()
-        )
+            creationDate = shipment.creationDate,
+            expectedDeliveryDateTimestamp = shipment.expectedDeliveryDateTimestamp,
+            currentLocation = shipment.currentLocation
+        ).apply {
+            // Copy over the mutable state
+            notes.addAll(shipment.notes)
+            updateHistory.addAll(shipment.updateHistory)
+        }
     }
     
     private fun updateAllStateProperties() {
@@ -266,7 +299,7 @@ class TrackerViewHelper : ShipmentObserver, UI {
         }.toTypedArray()
         
         _expectedShipmentDeliveryDate = trackedShipmentsData.values.map { shipment ->
-            "${shipment.id}: ${formatDate(shipment.expectedDeliveryDate)}"
+            "${shipment.id}: ${formatDate(shipment.expectedDeliveryDateTimestamp)}"
         }.toTypedArray()
         
         _shipmentStatus = trackedShipmentsData[_shipmentId]?.status ?: ""

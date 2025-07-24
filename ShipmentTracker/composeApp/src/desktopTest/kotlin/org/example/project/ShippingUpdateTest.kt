@@ -1,5 +1,6 @@
 package org.example.project
 
+import org.example.project.ShippingUpdate.ShippingUpdate
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
