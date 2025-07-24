@@ -41,80 +41,24 @@ class TrackerViewHelper : ShipmentObserver, UI {
     private var simulator: TrackingSimulator? = null
     private val viewHelperScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     
+    private var _trackedShipmentsState = mutableStateOf(emptyMap<String, Shipment>())
+    val trackedShipmentsState = _trackedShipmentsState
+    
+    private var _updateVersion = mutableStateOf(0)
+    val updateVersion = _updateVersion
+    
     fun initialize() {
-        // Create a TrackingSimulator in network mode (uses TrackingServer as its data source)
         val trackingSimulator = TrackingSimulator()
         trackingSimulator.setMode(SimulatorMode.NETWORK_BASED)
         trackingSimulator.setParser(ShipmentDataParser())
         trackingSimulator.setUpdater(ShipmentUpdater())
         
         setSimulator(trackingSimulator)
-        
-        // Don't load from file - we get data from TrackingServer instead
         createSampleShipments()
-    }
-    
-    /**
-     * Start automatic refresh of tracked shipments every 2 seconds
-     */
-    private fun startAutoRefresh() {
-        viewHelperScope.launch {
-            while (true) {
-                try {
-                    if (activeTrackingShipments.isNotEmpty()) {
-                        refreshTrackedShipments()
-                    }
-                    delay(10000) // Refresh every 10 seconds (reduced spam)
-                } catch (e: Exception) {
-                    // Ignore cancellation exceptions - they're normal during shutdown
-                    if (e.message?.contains("cancelled") != true) {
-                        println("Auto-refresh error: ${e.message}")
-                    }
-                }
-            }
-        }
     }
     
     fun setSimulator(simulator: TrackingSimulator) {
         this.simulator = simulator
-    }
-    
-    private fun loadShipmentsFromFile() {
-        viewHelperScope.launch {
-            try {
-                val parser = ShipmentDataParser()
-                val lines = parser.readFile("test.txt")
-                
-                if (lines.isEmpty()) {
-                    println("No data found in test.txt, falling back to sample data")
-                    createSampleShipments()
-                    return@launch
-                }
-                
-                println("Starting live file processing - ${lines.size} lines to process")
-                
-                for ((index, line) in lines.withIndex()) {
-                    if (line.isNotBlank()) {
-                        try {
-                            simulator?.processFileUpdate(line)
-                            println("Processed line ${index + 1}/${lines.size}: $line")
-                        } catch (e: Exception) {
-                            println("Error processing line ${index + 1}: $line - ${e.message}")
-                        }
-                    }
-                    
-                    if (index < lines.size - 1) {
-                        delay(1000)
-                    }
-                }
-                
-                println("Live file processing completed")
-                
-            } catch (e: Exception) {
-                println("Error loading shipments from test.txt: ${e.message}")
-                createSampleShipments()
-            }
-        }
     }
     
     private fun createSampleShipments() {
@@ -159,10 +103,8 @@ class TrackerViewHelper : ShipmentObserver, UI {
         }
         
         if (isTrackingShipment(trimmedId)) {
-            println("Stopping tracking for shipment: $trimmedId")
             stopTrackingShipment(trimmedId)
         } else {
-            println("Starting tracking for shipment: $trimmedId")
             startTracking(trimmedId)
         }
     }
@@ -179,9 +121,7 @@ class TrackerViewHelper : ShipmentObserver, UI {
                 return@launch
             }
             
-            if (trackShipment(shipmentId)) {
-                println("Now tracking shipment: $shipmentId")
-            } else {
+            if (!trackShipment(shipmentId)) {
                 _errorMessage = "Failed to track shipment '$shipmentId'"
             }
             
@@ -199,9 +139,8 @@ class TrackerViewHelper : ShipmentObserver, UI {
                     
                     shipment.addObserver(this)
                     updateAllStateProperties()
-                    forceUIUpdate()  // 🔥 Trigger UI update when new shipment added
+                    forceUIUpdate()
                     
-                    println("🎯 Started tracking shipment $id - UI should update!")
                     return true
                 }
             }
@@ -219,40 +158,6 @@ class TrackerViewHelper : ShipmentObserver, UI {
         activeTrackingShipments.clear()
         trackedShipmentsData.clear()
         clearAllStateProperties()
-        
-        println("Stopped tracking all shipments")
-    }
-    
-    /**
-     * Refresh all tracked shipments from the server
-     * Call this to update the UI when shipments have been modified on the server
-     */
-    fun refreshTrackedShipments() {
-        println("DEBUG: refreshTrackedShipments called")
-        val server = org.example.project.TrackingServer.getInstance()
-        
-        // Refresh each tracked shipment from the server
-        activeTrackingShipments.forEach { shipmentId ->
-            val oldShipment = trackedShipmentsData[shipmentId]
-            val updatedShipment = server.getShipment(shipmentId)
-            if (updatedShipment != null) {
-                // Only update if there's an actual change
-                val hasChanged = oldShipment?.status != updatedShipment.status || 
-                               oldShipment?.currentLocation != updatedShipment.currentLocation
-                
-                if (hasChanged) {
-                    println("🔄 Manual refresh detected change for $shipmentId: ${oldShipment?.status} -> ${updatedShipment.status}")
-                    trackedShipmentsData[shipmentId] = updatedShipment
-                } else if (oldShipment !== updatedShipment) {
-                    // Force update even if no changes detected
-                    trackedShipmentsData[shipmentId] = updatedShipment
-                }
-            }
-        }
-        
-        updateAllStateProperties()
-        forceUIUpdate()  // Force Compose recomposition
-        println("DEBUG: Finished refreshing tracked shipments")
     }
 
     fun stopTrackingShipment(id: String) {
@@ -263,9 +168,7 @@ class TrackerViewHelper : ShipmentObserver, UI {
         activeTrackingShipments.remove(id)
         trackedShipmentsData.remove(id)
         updateAllStateProperties()
-        forceUIUpdate()  // 🔥 Trigger UI update when shipment removed
-        
-        println("🛑 Stopped tracking shipment: $id - UI should update!")
+        forceUIUpdate()
     }
     
     fun clearError() {
@@ -285,33 +188,13 @@ class TrackerViewHelper : ShipmentObserver, UI {
     }
     
     fun getTrackedShipments(): Map<String, Shipment> {
-        println("DEBUG: getTrackedShipments called, returning: ${trackedShipmentsData.keys}")
         return trackedShipmentsData.toMap()
     }
     
-    // Add a state that triggers UI recomposition
-    private var _trackedShipmentsState = mutableStateOf(emptyMap<String, Shipment>())
-    val trackedShipmentsState = _trackedShipmentsState
-    
-    // Add a version counter to force updates even when objects are the same
-    private var _updateVersion = mutableStateOf(0)
-    val updateVersion = _updateVersion
-    
-    // Force UI update by updating the observable state
     private fun forceUIUpdate() {
-        println("DEBUG: forceUIUpdate called on thread: ${Thread.currentThread().name}")
-        
-        // Simple approach: clear and rebuild state to guarantee change detection
-        _trackedShipmentsState.value = emptyMap()  // Clear first
-        _updateVersion.value = _updateVersion.value + 1  // Increment version
-        _trackedShipmentsState.value = trackedShipmentsData.toMap()  // Set new value
-        
-        println("DEBUG: UI state updated with ${_trackedShipmentsState.value.size} shipments, version: ${_updateVersion.value}")
-        
-        // Debug: Show current shipment statuses
-        _trackedShipmentsState.value.forEach { (id, shipment) ->
-            println("DEBUG: UI state contains - ID: $id, Status: ${shipment.status}, Location: ${shipment.currentLocation}")
-        }
+        _trackedShipmentsState.value = emptyMap()
+        _updateVersion.value = _updateVersion.value + 1
+        _trackedShipmentsState.value = trackedShipmentsData.toMap()
     }
     
     fun isTrackingShipment(id: String): Boolean {
@@ -325,17 +208,14 @@ class TrackerViewHelper : ShipmentObserver, UI {
                 if (updatedShipment != null) {
                     trackedShipmentsData[shipmentId] = createShipmentCopy(updatedShipment)
                     updateAllStateProperties()
-                    forceUIUpdate()  // 🔥 This triggers Compose recomposition!
-                    
-                    println("🔔 TrackerViewHelper: Observer received update for shipment $shipmentId -> ${update.newStatus}")
-                    println("🎨 UI should now automatically update!")
+                    forceUIUpdate()
                 }
             }
         }
     }
     
     override fun notifyIfShipmentDoesntExist() {
-        println("UI Notification: Shipment doesn't exist")
+        // UI notification handled through error message state
     }
     
     fun shipmentExists(id: String): Boolean {
@@ -351,24 +231,17 @@ class TrackerViewHelper : ShipmentObserver, UI {
             expectedDeliveryDateTimestamp = shipment.expectedDeliveryDateTimestamp,
             currentLocation = shipment.currentLocation
         ).apply {
-            // Copy over the mutable state
             notes.addAll(shipment.notes)
             updateHistory.addAll(shipment.updateHistory)
         }
     }
     
     private fun updateAllStateProperties() {
-        println("DEBUG: updateAllStateProperties called")
-        println("DEBUG: activeTrackingShipments: $activeTrackingShipments")
-        println("DEBUG: trackedShipmentsData keys: ${trackedShipmentsData.keys}")
-        
         _shipmentId = activeTrackingShipments.lastOrNull() ?: ""
-        println("DEBUG: Set _shipmentId to: $_shipmentId")
         
         _shipmentTotes = trackedShipmentsData.values.map { shipment ->
             "${shipment.id}: ${shipment.status} at ${shipment.currentLocation}"
         }.toTypedArray()
-        println("DEBUG: Set _shipmentTotes to: ${_shipmentTotes.contentToString()}")
         
         _shipmentUpdateHistory = trackedShipmentsData.values.flatMap { shipment ->
             shipment.updateHistory.map { update ->
@@ -383,8 +256,6 @@ class TrackerViewHelper : ShipmentObserver, UI {
         }.toTypedArray()
         
         _shipmentStatus = trackedShipmentsData[_shipmentId]?.status ?: ""
-        println("DEBUG: Set _shipmentStatus to: $_shipmentStatus")
-        println("DEBUG: updateAllStateProperties completed")
     }
     
     private fun clearAllStateProperties() {

@@ -10,14 +10,11 @@ class ShipmentDataParser {
             if (file.exists() && file.isFile) {
                 file.readLines().toTypedArray()
             } else {
-                println("Warning: File not found or is not a valid file: $filePath")
                 arrayOf()
             }
         } catch (e: IOException) {
-            println("Error reading file $filePath: ${e.message}")
             arrayOf()
         } catch (e: Exception) {
-            println("Unexpected error reading file $filePath: ${e.message}")
             arrayOf()
         }
     }
@@ -25,14 +22,12 @@ class ShipmentDataParser {
     fun parseUpdate(update: String): Array<String> {
         return try {
             if (update.isBlank()) {
-                println("Warning: Empty update string provided")
                 return arrayOf()
             }
             
             val components = update.split(",").map { it.trim() }
             
             if (components.size < 2) {
-                println("Warning: Invalid update format. Expected at least UPDATE_TYPE and SHIPMENT_ID: $update")
                 return arrayOf()
             }
             
@@ -54,7 +49,6 @@ class ShipmentDataParser {
             
             arrayOf(shipmentId, normalizedUpdateType, timestamp, location, notes)
         } catch (e: Exception) {
-            println("Error parsing update string '$update': ${e.message}")
             arrayOf()
         }
     }
@@ -88,7 +82,6 @@ class ShipmentDataParser {
                 timestampStr.toLong()
             }
         } catch (e: NumberFormatException) {
-            println("Warning: Invalid timestamp format '$timestampStr', using current time")
             System.currentTimeMillis()
         }
     }

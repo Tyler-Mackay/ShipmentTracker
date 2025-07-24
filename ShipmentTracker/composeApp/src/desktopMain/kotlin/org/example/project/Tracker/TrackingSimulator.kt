@@ -6,13 +6,10 @@ import org.example.project.Shipment.ShipmentUpdater
 import org.example.project.Shipment.ShipmentFactory
 import org.example.project.Shipment.ShipmentType
 import org.example.project.ShippingUpdate.ShippingUpdate
-import org.example.project.TrackingServer
-import org.example.project.CreateShipmentRequest
-import org.example.project.UpdateShipmentRequest
 
 enum class SimulatorMode {
-    FILE_BASED,    // Original file-based simulation (currently disabled)
-    NETWORK_BASED  // Network mode using TrackingServer
+    FILE_BASED,
+    NETWORK_BASED
 }
 
 class TrackingSimulator {
@@ -43,42 +40,26 @@ class TrackingSimulator {
                 shipment.addUpdate(createUpdate)
             }
             SimulatorMode.NETWORK_BASED -> {
-                // In network mode, we don't directly add shipments here
-                // They should be created through the TrackingServer's createShipment method
-                println("Warning: addShipment called in NETWORK_BASED mode. Use TrackingServer.createShipment instead.")
+                // In network mode, shipments are created through TrackingServer
             }
         }
     }
     
     fun runSimulation(updateFilePath: String? = null) {
-        println("Starting simulation...")
-        
         if (shipments.isEmpty()) {
-            println("No shipments to track")
             return
         }
         
-        shipments.forEach { shipment ->
-            println("Tracking shipment: ${shipment.id} - Status: ${shipment.status}")
-        }
-        
         updateFilePath?.let { filePath ->
-            println("Processing update file: $filePath")
             processUpdateFile(filePath)
         }
-        
-        println("Simulation completed. Total shipments: ${shipments.size}")
     }
     
     fun processUpdateFile(filePath: String) {
         parser?.let { parser ->
             val updates = parser.readFile(filePath)
-            if (updates.isEmpty()) {
-                println("No updates found in file: $filePath")
-                return
-            }
+            if (updates.isEmpty()) return
             
-            println("Processing ${updates.size} updates from file...")
             var processedCount = 0
             var errorCount = 0
             
@@ -88,15 +69,10 @@ class TrackingSimulator {
                         processFileUpdate(update)
                         processedCount++
                     } catch (e: Exception) {
-                        println("Error processing update '$update': ${e.message}")
                         errorCount++
                     }
                 }
             }
-            
-            println("Update processing complete. Processed: $processedCount, Errors: $errorCount")
-        } ?: run {
-            println("Error: No parser available to process update file")
         }
     }
     
@@ -109,16 +85,10 @@ class TrackingSimulator {
     
     private fun processFileUpdateFileBased(update: String) {
         parser?.let { parser ->
-            if (!parser.isValidUpdateFormat(update)) {
-                println("Warning: Invalid update format: $update")
-                return
-            }
+            if (!parser.isValidUpdateFormat(update)) return
             
             val components = parser.parseUpdate(update)
-            if (components.isEmpty()) {
-                println("Warning: Failed to parse update: $update")
-                return
-            }
+            if (components.isEmpty()) return
             
             val shipmentId = components[0]
             val updateType = components[1]
@@ -132,7 +102,7 @@ class TrackingSimulator {
             if (shipment == null) {
                 if (updateType == "Create") {
                     shipment = ShipmentFactory.createShipment(
-                        type = ShipmentType.STANDARD, // Default to standard
+                        type = ShipmentType.STANDARD,
                         status = "Created",
                         id = shipmentId,
                         creationDate = timestamp,
@@ -140,10 +110,8 @@ class TrackingSimulator {
                         currentLocation = "Initial Location"
                     )
                     shipments.add(shipment)
-                    println("Created new shipment: $shipmentId")
                     return
                 } else {
-                    println("Warning: Shipment not found for update: $shipmentId")
                     return
                 }
             }
@@ -151,46 +119,35 @@ class TrackingSimulator {
             updater?.let { updater ->
                 try {
                     val shippingUpdate = updater.processUpdate(updateType, shipment, timestamp)
-                    
+                    val updateTypeLower = updateType.lowercase()
+                    var estimatedDeliveryTimestamp: Long? = null
+                    if (updateTypeLower == "create" || updateTypeLower == "shipped" || updateTypeLower == "delayed") {
+                        // For these types, the estimated delivery timestamp is the last number in the CSV
+                        // For shipped/delayed, it's the 4th component (index 3)
+                        val estStr = if (updateTypeLower == "create") timestampStr else (if (components.size > 3) components[3] else null)
+                        estimatedDeliveryTimestamp = estStr?.toLongOrNull()
+                    }
                     if (location.isNotBlank()) {
                         shipment.updateLocation(location)
                         shipment.addNote("Location update: $location")
                     }
-                    
                     if (notes.isNotBlank()) {
                         shipment.addNote(notes)
                     }
-                    
-                    shipment.addUpdate(shippingUpdate)
-                    
-                    println("Successfully processed update for shipment $shipmentId: $updateType")
+                    shipment.addUpdate(shippingUpdate, estimatedDeliveryTimestamp, updateTypeLower)
                 } catch (e: Exception) {
-                    println("Error processing update for shipment $shipmentId: ${e.message}")
+                    // Handle error silently
                 }
-            } ?: run {
-                println("Warning: No updater available to process update")
             }
-        } ?: run {
-            println("Warning: No parser available to process update: $update")
         }
     }
     
     private fun processFileUpdateNetworkBased(update: String) {
-        // In network mode, we delegate to TrackingServer
-        // This is typically called from TrackerViewHelper when processing simulation files
-        println("Processing update in network mode: $update")
-        
         parser?.let { parser ->
-            if (!parser.isValidUpdateFormat(update)) {
-                println("Warning: Invalid update format: $update")
-                return
-            }
+            if (!parser.isValidUpdateFormat(update)) return
             
             val components = parser.parseUpdate(update)
-            if (components.isEmpty()) {
-                println("Warning: Failed to parse update: $update")
-                return
-            }
+            if (components.isEmpty()) return
             
             val shipmentId = components[0]
             val updateType = components[1]
@@ -200,50 +157,40 @@ class TrackingSimulator {
             
             val timestamp = parser.parseTimestamp(timestampStr)
             
-                            try {
+            try {
                 when (updateType.toLowerCase()) {
                     "create" -> {
-                        // Create shipment data in the format expected by CreateShipmentRequest
                         val createData = "created,$shipmentId,standard,$timestamp"
                         val createRequest = CreateShipmentRequest(createData)
                         trackingServer.createShipment(createRequest)
-                        println("Created new shipment via TrackingServer: $shipmentId")
                     }
                     else -> {
-                        // Handle other update types
                         val existingShipment = trackingServer.getShipment(shipmentId)
-                        if (existingShipment != null) {
+                        existingShipment?.let { shipment ->
                             updater?.let { updater ->
-                                val shippingUpdate = updater.processUpdate(updateType, existingShipment, timestamp)
+                                val shippingUpdate = updater.processUpdate(updateType, shipment, timestamp)
                                 
                                 if (location.isNotBlank()) {
-                                    existingShipment.updateLocation(location)
-                                    existingShipment.addNote("Location update: $location")
+                                    shipment.updateLocation(location)
+                                    shipment.addNote("Location update: $location")
                                 }
                                 
                                 if (notes.isNotBlank()) {
-                                    existingShipment.addNote(notes)
+                                    shipment.addNote(notes)
                                 }
                                 
-                                existingShipment.addUpdate(shippingUpdate)
+                                shipment.addUpdate(shippingUpdate)
                                 
-                                // Create update data in the format expected by UpdateShipmentRequest
                                 val updateData = "$updateType,$shipmentId,$timestamp"
                                 val updateRequest = UpdateShipmentRequest(updateData)
                                 trackingServer.updateShipment(updateRequest)
-                                
-                                println("Successfully processed update via TrackingServer for shipment $shipmentId: $updateType")
                             }
-                        } else {
-                            println("Warning: Shipment not found in TrackingServer for update: $shipmentId")
                         }
                     }
                 }
             } catch (e: Exception) {
-                println("Error processing update via TrackingServer: ${e.message}")
+                // Handle error silently
             }
-        } ?: run {
-            println("Warning: No parser available to process update: $update")
         }
     }
     
@@ -257,7 +204,6 @@ class TrackingSimulator {
     
     fun setMode(mode: SimulatorMode) {
         this.mode = mode
-        println("TrackingSimulator mode set to: $mode")
     }
     
     fun getMode(): SimulatorMode = mode

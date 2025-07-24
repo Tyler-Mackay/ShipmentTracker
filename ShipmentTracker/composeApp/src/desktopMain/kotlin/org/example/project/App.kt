@@ -50,9 +50,6 @@ fun ShipmentTrackerScreen(trackerViewHelper: TrackerViewHelper) {
     val errorMessage = trackerViewHelper.errorMessage
     val isLoading = trackerViewHelper.isLoading
     
-    // Debug: Print when recomposition happens
-    println("🎨 ShipmentTrackerScreen recomposition - tracked: ${trackedShipments.size}, version: $updateVersion")
-    
     Column(
         modifier = Modifier
             .fillMaxSize()

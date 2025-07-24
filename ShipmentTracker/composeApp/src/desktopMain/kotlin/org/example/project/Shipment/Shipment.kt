@@ -24,9 +24,6 @@ abstract class Shipment(
     override fun addObserver(observer: ShipmentObserver) {
         if (!observers.contains(observer)) {
             observers.add(observer)
-            println("👁️ Shipment ${id} added observer: ${observer::class.simpleName} (total: ${observers.size})")
-        } else {
-            println("👁️ Shipment ${id} observer already exists: ${observer::class.simpleName}")
         }
     }
     
@@ -35,9 +32,7 @@ abstract class Shipment(
     }
     
     override fun notifyObservers(shipment: Shipment, update: ShippingUpdate) {
-        println("🔔 Shipment ${shipment.id} notifying ${observers.size} observers of update: ${update.newStatus}")
         observers.forEach { observer ->
-            println("🔔 Notifying observer: ${observer::class.simpleName}")
             observer.onShipmentUpdate(shipment.id, update)
         }
     }
@@ -46,9 +41,10 @@ abstract class Shipment(
         notes.add(note)
     }
     
-    fun addUpdate(update: ShippingUpdate) {
+    fun addUpdate(update: ShippingUpdate, estimatedDeliveryTimestamp: Long? = null, updateType: String? = null) {
         updateHistory.add(update)
         status = update.newStatus
+        validateDeliveryDate(update.timestamp, estimatedDeliveryTimestamp, updateType)
         notifyObservers(this, update)
     }
     
@@ -59,17 +55,17 @@ abstract class Shipment(
     /**
      * Validate delivery date based on shipment type rules
      * Returns ValidationResult indicating if delivery timing is acceptable
+     * @param currentTimestamp Optional current timestamp for ongoing compliance checking
      */
-    abstract fun validateDeliveryDate(): ValidationResult
+    abstract fun validateDeliveryDate(
+        currentTimestamp: Long = creationDate,
+        estimatedDeliveryTimestamp: Long? = null,
+        updateType: String? = null
+    ): ValidationResult
     
     fun markAbnormal(abnormality: String) {
         this.isAbnormal = true
         this.abnormality = abnormality
-    }
-    
-    fun clearAbnormality() {
-        this.isAbnormal = false
-        this.abnormality = ""
     }
 }
 
@@ -102,7 +98,11 @@ class StandardShipment(
     currentLocation: String = ""
 ) : Shipment(status, id, ShipmentType.STANDARD, creationDate, mutableListOf(), mutableListOf(), expectedDeliveryDateTimestamp, currentLocation) {
     
-    override fun validateDeliveryDate(): ValidationResult {
+    override fun validateDeliveryDate(
+        currentTimestamp: Long,
+        estimatedDeliveryTimestamp: Long?,
+        updateType: String?
+    ): ValidationResult {
         // Standard shipments have no special timing constraints
         return ValidationResult(true, "Standard shipment delivery timing is acceptable")
     }
@@ -119,16 +119,34 @@ class ExpressShipment(
     currentLocation: String = ""
 ) : Shipment(status, id, ShipmentType.EXPRESS, creationDate, mutableListOf(), mutableListOf(), expectedDeliveryDateTimestamp, currentLocation) {
     
-    override fun validateDeliveryDate(): ValidationResult {
+    override fun validateDeliveryDate(currentTimestamp: Long, estimatedDeliveryTimestamp: Long?, updateType: String?): ValidationResult {
         val deliveryTimeMs = expectedDeliveryDateTimestamp - creationDate
         val deliveryTimeDays = deliveryTimeMs / (1000 * 60 * 60 * 24)
         
-        return if (deliveryTimeDays <= 3) {
+        // Check original delivery date constraint (for creation time validation)
+        val originalValidation = if (deliveryTimeDays <= 3) {
             ValidationResult(true, "Express shipment delivery timing is acceptable (<= 3 days)")
         } else {
             markAbnormal("<= 3 day delivery requirement violated")
             ValidationResult(false, "Express shipment abnormality: delivery time exceeds 3 days")
         }
+        
+        // Check ongoing compliance (during updates)
+        if (updateType in listOf("created", "shipped", "delayed") && estimatedDeliveryTimestamp != null) {
+            val estDays = (estimatedDeliveryTimestamp - creationDate) / (1000 * 60 * 60 * 24)
+            if (estDays > 3) {
+                val note = "Shipment will be arriving later than the original 3 day shipping window."
+                addUpdate(org.example.project.ShippingUpdate.ShippingUpdate(
+                    previousStatus = status,
+                    newStatus = "NoteAdded",
+                    timestamp = currentTimestamp
+                ))
+                addNote(note)
+                markAbnormal("Delivery deadline exceeded")
+            }
+        }
+        
+        return originalValidation
     }
 }
 
@@ -143,16 +161,34 @@ class OvernightShipment(
     currentLocation: String = ""
 ) : Shipment(status, id, ShipmentType.OVERNIGHT, creationDate, mutableListOf(), mutableListOf(), expectedDeliveryDateTimestamp, currentLocation) {
     
-    override fun validateDeliveryDate(): ValidationResult {
+    override fun validateDeliveryDate(currentTimestamp: Long, estimatedDeliveryTimestamp: Long?, updateType: String?): ValidationResult {
         val deliveryTimeMs = expectedDeliveryDateTimestamp - creationDate
         val deliveryTimeDays = deliveryTimeMs / (1000 * 60 * 60 * 24)
         
-        return if (deliveryTimeDays <= 1) {
+        // Check original delivery date constraint (for creation time validation)
+        val originalValidation = if (deliveryTimeDays <= 1) {
             ValidationResult(true, "Overnight shipment delivery timing is acceptable (next day)")
         } else {
             markAbnormal("next day delivery requirement violated")
             ValidationResult(false, "Overnight shipment abnormality: delivery time exceeds 1 day")
         }
+        
+        // Check ongoing compliance (during updates)
+        if (updateType in listOf("created", "shipped", "delayed") && estimatedDeliveryTimestamp != null) {
+            val estDays = (estimatedDeliveryTimestamp - creationDate) / (1000 * 60 * 60 * 24)
+            if (estDays > 1) {
+                val note = "Shipment will be arriving later than the original next day window."
+                addUpdate(org.example.project.ShippingUpdate.ShippingUpdate(
+                    previousStatus = status,
+                    newStatus = "NoteAdded",
+                    timestamp = currentTimestamp
+                ))
+                addNote(note)
+                markAbnormal("Next-day delivery deadline exceeded")
+            }
+        }
+        
+        return originalValidation
     }
 }
 
@@ -167,16 +203,34 @@ class BulkShipment(
     currentLocation: String = ""
 ) : Shipment(status, id, ShipmentType.BULK, creationDate, mutableListOf(), mutableListOf(), expectedDeliveryDateTimestamp, currentLocation) {
     
-    override fun validateDeliveryDate(): ValidationResult {
+    override fun validateDeliveryDate(currentTimestamp: Long, estimatedDeliveryTimestamp: Long?, updateType: String?): ValidationResult {
         val deliveryTimeMs = expectedDeliveryDateTimestamp - creationDate
         val deliveryTimeDays = deliveryTimeMs / (1000 * 60 * 60 * 24)
         
-        return if (deliveryTimeDays > 3) {
+        // Check original delivery date constraint (for creation time validation)
+        val originalValidation = if (deliveryTimeDays > 3) {
             ValidationResult(true, "Bulk shipment delivery timing is acceptable (> 3 days)")
         } else {
             markAbnormal("> 3 day delivery requirement violated")
             ValidationResult(false, "Bulk shipment abnormality: delivery time is too fast (should be > 3 days)")
         }
+        
+        // Check ongoing compliance (during updates)
+        if (updateType in listOf("created", "shipped", "delayed") && estimatedDeliveryTimestamp != null) {
+            val estDays = (estimatedDeliveryTimestamp - creationDate) / (1000 * 60 * 60 * 24)
+            if (estDays <= 3) {
+                val note = "Shipment will be arriving sooner than the original 3 day waiting time."
+                addUpdate(org.example.project.ShippingUpdate.ShippingUpdate(
+                    previousStatus = status,
+                    newStatus = "NoteAdded",
+                    timestamp = currentTimestamp
+                ))
+                addNote(note)
+                markAbnormal("Delivered too early")
+            }
+        }
+        
+        return originalValidation
     }
 }
 
