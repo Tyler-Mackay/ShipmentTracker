@@ -98,55 +98,6 @@ class TrackingClient {
         return "$eventType,$shipmentId,$shipmentType,$timestamp"
     }
     
-    fun displayResponse(response: ServerResponse) {
-        // This would send the response back to the web interface
-    }
-    
-    fun processWebInput(input: String): String {
-        return try {
-            val request = parseUserInput(input)
-            
-            when (request) {
-                is CreateShipmentRequest -> {
-                    val success = sendCreateRequest(request.data)
-                    if (success) {
-                        val parts = request.data.split(",")
-                        if (parts.size >= 4) {
-                            val shipmentId = parts[1]
-                            val shipmentType = parts[2].uppercase()
-                            val timestamp = parts[3]
-                            "✅ $shipmentType shipment $shipmentId created successfully at ${formatTimestamp(timestamp)}"
-                        } else {
-                            "✅ Create request sent successfully"
-                        }
-                    } else "❌ Failed to send create request"
-                }
-                is UpdateShipmentRequest -> {
-                    val success = sendUpdateRequest(request.data)
-                    if (success) {
-                        val parts = request.data.split(",")
-                        if (parts.size >= 3) {
-                            val eventType = parts[0].replaceFirstChar { it.uppercase() }
-                            val shipmentId = parts[1]
-                            val additionalInfo = if (parts.size > 3) " - ${parts.drop(3).joinToString(",")}" else ""
-                            "✅ $eventType update for shipment $shipmentId processed$additionalInfo"
-                        } else {
-                            "✅ Update request sent successfully"
-                        }
-                    } else "❌ Failed to send update request"
-                }
-                is TrackShipmentRequest -> {
-                    val success = sendCreateRequest("TRACK:${request.data}")
-                    if (success) "🔍 Tracking request sent for: ${request.data}"
-                    else "❌ Failed to send tracking request"
-                }
-                else -> "❓ Unknown request type processed"
-            }
-        } catch (e: Exception) {
-            "❌ Error processing request: ${e.message}"
-        }
-    }
-    
     fun processInputSimple(input: String): String {
         try {
             val parsedRequest = parseUserInput(input)
@@ -167,7 +118,7 @@ class TrackingClient {
                         val response = responseFile.readText()
                         responseFile.delete()
                         requestFile.delete()
-                        "✅ Shipment created successfully! Response: $response"
+                        response
                     } else {
                         requestFile.delete()
                         "❌ Timeout waiting for server response"
@@ -189,7 +140,7 @@ class TrackingClient {
                         val response = responseFile.readText()
                         responseFile.delete()
                         requestFile.delete()
-                        "✅ Shipment updated successfully! Response: $response"
+                        response
                     } else {
                         requestFile.delete()
                         "❌ Timeout waiting for server response"
@@ -205,19 +156,10 @@ class TrackingClient {
             return "❌ Error processing input: ${e.message}"
         }
     }
-    
-    private fun formatTimestamp(timestamp: String): String {
-        return try {
-            val millis = timestamp.toLong()
-            val date = java.util.Date(millis)
-            java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(date)
-        } catch (e: Exception) {
-            timestamp
-        }
-    }
+
 }
 
-class ServerConnection(private val serverUrl: String, private val port: Int) {
+class ServerConnection(serverUrl: String, port: Int) {
     private var connected = false
     private val baseUrl = "http://$serverUrl:$port"
     
@@ -292,10 +234,6 @@ class ServerConnection(private val serverUrl: String, private val port: Int) {
             throw Exception("HTTP request failed: ${e.message}")
         }
     }
-    
-    fun disconnect() {
-        connected = false
-    }
 }
 
 abstract class ClientRequest(
@@ -318,9 +256,3 @@ class UpdateShipmentRequest(data: String) :
 
 class TrackShipmentRequest(data: String) : 
     ClientRequest(RequestType.TRACK, data)
-
-data class ServerResponse(
-    val status: String,
-    val message: String,  
-    val data: String? = null
-) 

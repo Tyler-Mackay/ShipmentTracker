@@ -205,6 +205,4 @@ class TrackingSimulator {
     fun setMode(mode: SimulatorMode) {
         this.mode = mode
     }
-    
-    fun getMode(): SimulatorMode = mode
-} 
+}
