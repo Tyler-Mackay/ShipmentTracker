@@ -44,9 +44,14 @@ fun App() {
 
 @Composable
 fun ShipmentTrackerScreen(trackerViewHelper: TrackerViewHelper) {
-    val trackedShipments = trackerViewHelper.getTrackedShipments()
+    // Observe the Compose state for automatic recomposition
+    val trackedShipments by trackerViewHelper.trackedShipmentsState
+    val updateVersion by trackerViewHelper.updateVersion  // Force recomposition when version changes
     val errorMessage = trackerViewHelper.errorMessage
     val isLoading = trackerViewHelper.isLoading
+    
+    // Debug: Print when recomposition happens
+    println("🎨 ShipmentTrackerScreen recomposition - tracked: ${trackedShipments.size}, version: $updateVersion")
     
     Column(
         modifier = Modifier

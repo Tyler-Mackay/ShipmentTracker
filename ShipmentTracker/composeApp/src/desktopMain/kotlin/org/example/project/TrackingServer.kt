@@ -265,12 +265,25 @@ class TrackingServer private constructor() {
             val shippingUpdate = updater.processUpdate(updateData.updateType, shipment, updateData.timestamp)
             
             // Apply the update to the shipment
+            println("DEBUG: Updating shipment ${shipment.id} with ${updateData.updateType}")
+            println("DEBUG: Shipment status before update: ${shipment.status}")
             shipment.addUpdate(shippingUpdate)
+            println("DEBUG: Shipment status after update: ${shipment.status}")
+            
+            // TODO: Notify observers that shipment was updated
+            // This should trigger TrackerViewHelper.onShipmentUpdate if it's observing this shipment
+            println("DEBUG: Shipment ${shipment.id} updated - observers should be notified")
             
             // Handle special update types
             when (updateData.updateType.lowercase()) {
-                "location" -> updateData.additionalData?.let { shipment.updateLocation(it) }
-                "noteadded" -> updateData.additionalData?.let { shipment.addNote(it) }
+                "location" -> updateData.additionalData?.let { 
+                    println("DEBUG: Updating location to: $it")
+                    shipment.updateLocation(it) 
+                }
+                "noteadded" -> updateData.additionalData?.let { 
+                    println("DEBUG: Adding note: $it")
+                    shipment.addNote(it) 
+                }
             }
             
             UpdateShipmentResponse(
@@ -352,6 +365,7 @@ class TrackingServer private constructor() {
         return try {
             when {
                 requestContent.startsWith("CREATE:") -> {
+                    println("📂 Processing CREATE request")
                     val data = requestContent.removePrefix("CREATE:")
                     val request = CreateShipmentRequest(data)
                     val response = createShipment(request)
@@ -360,9 +374,13 @@ class TrackingServer private constructor() {
                 }
                 
                 requestContent.startsWith("UPDATE:") -> {
+                    println("📂 Processing UPDATE request")
                     val data = requestContent.removePrefix("UPDATE:")
+                    println("📂 Parsed data: $data")
                     val request = UpdateShipmentRequest(data)
+                    println("📂 About to call updateShipment()")
                     val response = updateShipment(request)
+                    println("📂 updateShipment() returned: ${response.message}")
                     
                     "✅ ${response.message}"
                 }
@@ -372,6 +390,8 @@ class TrackingServer private constructor() {
                 }
             }
         } catch (e: Exception) {
+            println("📂 Exception in processFileRequest: ${e.message}")
+            e.printStackTrace()
             "❌ Error processing request: ${e.message}"
         }
     }

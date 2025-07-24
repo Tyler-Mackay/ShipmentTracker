@@ -24,6 +24,9 @@ abstract class Shipment(
     override fun addObserver(observer: ShipmentObserver) {
         if (!observers.contains(observer)) {
             observers.add(observer)
+            println("👁️ Shipment ${id} added observer: ${observer::class.simpleName} (total: ${observers.size})")
+        } else {
+            println("👁️ Shipment ${id} observer already exists: ${observer::class.simpleName}")
         }
     }
     
@@ -32,7 +35,9 @@ abstract class Shipment(
     }
     
     override fun notifyObservers(shipment: Shipment, update: ShippingUpdate) {
+        println("🔔 Shipment ${shipment.id} notifying ${observers.size} observers of update: ${update.newStatus}")
         observers.forEach { observer ->
+            println("🔔 Notifying observer: ${observer::class.simpleName}")
             observer.onShipmentUpdate(shipment.id, update)
         }
     }
