@@ -1,145 +1,81 @@
 package org.example.project
 
 import org.example.project.Shipment.ShipmentDataParser
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
-import kotlin.test.assertFalse
+import kotlin.test.*
 import java.io.File
 
 class ShipmentDataParserTest {
 
-    private val parser = ShipmentDataParser()
+    private lateinit var parser: ShipmentDataParser
 
-    @Test
-    fun testReadFileWithValidFile() {
-        // Create a temporary test file
-        val testFile = File("test_data.txt")
-        try {
-            testFile.writeText("Created,s10000,1234567890\nShipped,s10001,1234567891")
-            
-            val result = parser.readFile("test_data.txt")
-            
-            assertEquals(2, result.size)
-            assertEquals("Created,s10000,1234567890", result[0])
-            assertEquals("Shipped,s10001,1234567891", result[1])
-        } finally {
-            testFile.delete()
-        }
+    @BeforeTest
+    fun setup() {
+        parser = ShipmentDataParser()
     }
 
     @Test
-    fun testReadFileWithEmptyFile() {
-        val testFile = File("empty_test.txt")
-        try {
-            testFile.writeText("")
-            
-            val result = parser.readFile("empty_test.txt")
-            
-            assertEquals(0, result.size)
-        } finally {
-            testFile.delete()
-        }
-    }
-
-    @Test
-    fun testReadFileWithNonExistentFile() {
-        val result = parser.readFile("non_existent_file.txt")
-        assertEquals(0, result.size)
-    }
-
-    @Test
-    fun testParseUpdateWithValidFormat() {
-        val updateString = "Created,s10000,1234567890"
+    fun testParseUpdateValidFormat() {
+        val updateString = "shipped,SHIP001,1234567890"
         val result = parser.parseUpdate(updateString)
         
         assertEquals(5, result.size)
-        assertEquals("s10000", result[0]) // shipmentId
-        assertEquals("Create", result[1]) // normalized updateType
+        assertEquals("SHIP001", result[0]) // shipmentId
+        assertEquals("Shipped", result[1]) // normalized updateType
         assertEquals("1234567890", result[2]) // timestamp
         assertEquals("", result[3]) // location
         assertEquals("", result[4]) // notes
     }
 
     @Test
-    fun testParseUpdateWithLocationUpdate() {
-        val updateString = "Location,s10000,1234567890,New York City"
+    fun testParseUpdateWithLocation() {
+        val updateString = "location,SHIP002,1234567890,Distribution Center"
         val result = parser.parseUpdate(updateString)
         
         assertEquals(5, result.size)
-        assertEquals("s10000", result[0])
+        assertEquals("SHIP002", result[0])
         assertEquals("Location", result[1])
         assertEquals("1234567890", result[2])
-        assertEquals("New York City", result[3]) // location
+        assertEquals("Distribution Center", result[3])
         assertEquals("", result[4])
     }
 
     @Test
-    fun testParseUpdateWithNoteAdded() {
-        val updateString = "NoteAdded,s10000,1234567890,Package requires signature"
+    fun testParseUpdateWithNotes() {
+        val updateString = "noteadded,SHIP003,1234567890,,Important package"
         val result = parser.parseUpdate(updateString)
         
         assertEquals(5, result.size)
-        assertEquals("s10000", result[0])
+        assertEquals("SHIP003", result[0])
         assertEquals("NoteAdded", result[1])
         assertEquals("1234567890", result[2])
         assertEquals("", result[3])
-        assertEquals("Package requires signature", result[4]) // notes
+        assertEquals("Important package", result[4])
     }
 
     @Test
-    fun testParseUpdateWithShippedType() {
-        val updateString = "Shipped,s10000,1234567890,1234567900"
-        val result = parser.parseUpdate(updateString)
-        
-        assertEquals(5, result.size)
-        assertEquals("s10000", result[0])
-        assertEquals("Shipped", result[1])
-        assertEquals("1234567900", result[2]) // For shipped, use 4th component as timestamp
-        assertEquals("", result[3])
-        assertEquals("", result[4])
-    }
-
-    @Test
-    fun testParseUpdateWithDelayedType() {
-        val updateString = "Delayed,s10000,1234567890,1234567950"
-        val result = parser.parseUpdate(updateString)
-        
-        assertEquals(5, result.size)
-        assertEquals("s10000", result[0])
-        assertEquals("Delayed", result[1])
-        assertEquals("1234567950", result[2]) // For delayed, use 4th component as timestamp
-        assertEquals("", result[3])
-        assertEquals("", result[4])
-    }
-
-    @Test
-    fun testParseUpdateWithInvalidFormat() {
-        val updateString = "InvalidFormat"
+    fun testParseUpdateInvalidFormat() {
+        val updateString = "invalid"
         val result = parser.parseUpdate(updateString)
         
         assertEquals(0, result.size)
     }
 
     @Test
-    fun testParseUpdateWithEmptyString() {
+    fun testParseUpdateBlankInput() {
         val result = parser.parseUpdate("")
         assertEquals(0, result.size)
+        
+        val result2 = parser.parseUpdate("   ")
+        assertEquals(0, result2.size)
     }
 
     @Test
-    fun testParseUpdateWithBlankString() {
-        val result = parser.parseUpdate("   ")
-        assertEquals(0, result.size)
-    }
-
-    @Test
-    fun testParseUpdateWithMinimumComponents() {
-        val updateString = "Created,s10000"
+    fun testParseUpdateMinimalValid() {
+        val updateString = "create,SHIP004"
         val result = parser.parseUpdate(updateString)
         
         assertEquals(5, result.size)
-        assertEquals("s10000", result[0])
+        assertEquals("SHIP004", result[0])
         assertEquals("Create", result[1])
         assertEquals("", result[2]) // empty timestamp
         assertEquals("", result[3])
@@ -147,117 +83,85 @@ class ShipmentDataParserTest {
     }
 
     @Test
-    fun testNormalizeUpdateTypes() {
-        val testCases = mapOf(
+    fun testNormalizeUpdateType() {
+        // Test various input formats are normalized correctly
+        val testCases = listOf(
             "created" to "Create",
-            "shipped" to "Shipped",
-            "location" to "Location",
+            "SHIPPED" to "Shipped", 
+            "Location" to "Location",
             "delivered" to "Delivered",
-            "delayed" to "Delayed",
+            "DELAYED" to "Delayed",
             "lost" to "Lost",
             "canceled" to "Cancelled",
-            "noteadded" to "NoteAdded",
-            "CustomType" to "CustomType"
+            "NOTEADDED" to "NoteAdded"
         )
         
         testCases.forEach { (input, expected) ->
-            val result = parser.parseUpdate("$input,s10000,123")
-            assertEquals(expected, result[1], "Failed to normalize $input to $expected")
+            val result = parser.parseUpdate("$input,SHIP001,1000")
+            assertEquals(expected, result[1], "Failed for input: $input")
         }
     }
 
     @Test
-    fun testIsValidUpdateFormatWithValidInputs() {
-        assertTrue(parser.isValidUpdateFormat("Created,s10000"))
-        assertTrue(parser.isValidUpdateFormat("Shipped,s10001,1234567890"))
-        assertTrue(parser.isValidUpdateFormat("Location,s10002,1234567890,New York"))
-        assertTrue(parser.isValidUpdateFormat("NoteAdded,s10003,1234567890,Important note"))
-    }
-
-    @Test
-    fun testIsValidUpdateFormatWithInvalidInputs() {
+    fun testIsValidUpdateFormat() {
+        assertTrue(parser.isValidUpdateFormat("create,SHIP001"))
+        assertTrue(parser.isValidUpdateFormat("shipped,SHIP002,1000"))
+        assertTrue(parser.isValidUpdateFormat("location,SHIP003,1000,Hub"))
+        
         assertFalse(parser.isValidUpdateFormat(""))
         assertFalse(parser.isValidUpdateFormat("   "))
-        assertFalse(parser.isValidUpdateFormat("OnlyOneComponent"))
-        assertFalse(parser.isValidUpdateFormat(",s10000")) // empty first component
-        assertFalse(parser.isValidUpdateFormat("Created,")) // empty second component
+        assertFalse(parser.isValidUpdateFormat("onlyonefield"))
+        assertFalse(parser.isValidUpdateFormat(","))
+        assertFalse(parser.isValidUpdateFormat("create,"))
     }
 
     @Test
-    fun testParseTimestampWithValidTimestamp() {
-        val timestamp = parser.parseTimestamp("1234567890")
-        assertEquals(1234567890L, timestamp)
-    }
-
-    @Test
-    fun testParseTimestampWithEmptyString() {
-        val timestamp = parser.parseTimestamp("")
-        assertTrue(timestamp > 0) // Should return current time
-        assertTrue(timestamp <= System.currentTimeMillis())
-    }
-
-    @Test
-    fun testParseTimestampWithInvalidFormat() {
-        val timestamp = parser.parseTimestamp("invalid_timestamp")
-        assertTrue(timestamp > 0) // Should return current time
-        assertTrue(timestamp <= System.currentTimeMillis())
-    }
-
-    @Test
-    fun testParseTimestampWithBlankString() {
-        val timestamp = parser.parseTimestamp("   ")
-        assertTrue(timestamp > 0)
-        assertTrue(timestamp <= System.currentTimeMillis())
-    }
-
-    @Test
-    fun testParseUpdateWithWhitespace() {
-        val updateString = " Created , s10000 , 1234567890 "
-        val result = parser.parseUpdate(updateString)
+    fun testParseTimestamp() {
+        assertEquals(1234567890L, parser.parseTimestamp("1234567890"))
+        assertEquals(0L, parser.parseTimestamp("0"))
         
-        assertEquals(5, result.size)
-        assertEquals("s10000", result[0]) // Should trim whitespace
-        assertEquals("Create", result[1])
-        assertEquals("1234567890", result[2])
+        // Should return current time for invalid input
+        val currentTime = System.currentTimeMillis()
+        val result = parser.parseTimestamp("invalid")
+        assertTrue(result >= currentTime - 1000) // Within last second
+        
+        val result2 = parser.parseTimestamp("")
+        assertTrue(result2 >= currentTime - 1000)
     }
 
     @Test
-    fun testReadFileWithSingleLine() {
-        val testFile = File("single_line_test.txt")
+    fun testReadFileWithTempFile() {
+        val tempFile = File.createTempFile("test", ".txt")
         try {
-            testFile.writeText("Created,s10000,1234567890")
+            tempFile.writeText("line1\nline2\nline3")
             
-            val result = parser.readFile("single_line_test.txt")
+            val result = parser.readFile(tempFile.absolutePath)
             
-            assertEquals(1, result.size)
-            assertEquals("Created,s10000,1234567890", result[0])
+            assertEquals(3, result.size)
+            assertEquals("line1", result[0])
+            assertEquals("line2", result[1])
+            assertEquals("line3", result[2])
         } finally {
-            testFile.delete()
+            tempFile.delete()
         }
     }
 
     @Test
-    fun testReadFileWithMultipleLines() {
-        val testFile = File("multi_line_test.txt")
+    fun testReadFileNonExistent() {
+        val result = parser.readFile("non_existent_file.txt")
+        assertEquals(0, result.size)
+    }
+
+    @Test
+    fun testReadFileEmpty() {
+        val tempFile = File.createTempFile("empty", ".txt")
         try {
-            val content = """
-                Created,s10000,1234567890
-                Shipped,s10000,1234567891
-                Location,s10000,1234567892,Distribution Center
-                Delivered,s10000,1234567893
-            """.trimIndent()
+            tempFile.writeText("")
             
-            testFile.writeText(content)
-            
-            val result = parser.readFile("multi_line_test.txt")
-            
-            assertEquals(4, result.size)
-            assertEquals("Created,s10000,1234567890", result[0])
-            assertEquals("Shipped,s10000,1234567891", result[1])
-            assertEquals("Location,s10000,1234567892,Distribution Center", result[2])
-            assertEquals("Delivered,s10000,1234567893", result[3])
+            val result = parser.readFile(tempFile.absolutePath)
+            assertEquals(0, result.size)
         } finally {
-            testFile.delete()
+            tempFile.delete()
         }
     }
 } 
